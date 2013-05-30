@@ -4,7 +4,7 @@
 #include "msg_sender.h"
 
 int main() {
-    char* data = "Hello World!";
+    char* data = "Hello World! asdfeasdf";
     unsigned data_len = strlen(data);
     sender_s* sender = msg_sender_init();
     if (sender == NULL) {

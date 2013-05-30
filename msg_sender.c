@@ -6,86 +6,90 @@
 sender_s* msg_sender_init()
 {
     sender_s* sender = malloc(sizeof(sender_s));
-    sender->iface = "eth0";
-    unsigned char dest_array[ETH_ALEN] = { 0x00, 0x12, 0x34, 0x56, 0x78, 0x90 };
-    memcpy(sender->dest, dest_array, ETH_ALEN);
-    sender->proto = 0x00;
-
-    // Build the socket
-    sender->s = socket(AF_PACKET, SOCK_RAW, htons(sender->proto));
-    if (sender->s < 0) {
-        printf("Can't open the socket, root privilege is needed!\n");
-        free(sender);
+    char err_buff[LIBNET_ERRBUF_SIZE];
+    sender->device = "eth0";
+    sender->l = libnet_init(LIBNET_LINK, sender->device, err_buff);
+    if (sender->l == NULL) {
+        printf("libnet init err!\n");
+        fprintf(stderr, "%s", err_buff);
         return NULL;
     }
 
-    // Look up interface properties
-    struct ifreq buffer;
-    int ifindex;
-    memset(&buffer, 0x00, sizeof(buffer));
-    strncpy(buffer.ifr_name, sender->iface, IFNAMSIZ);
-    if (ioctl(sender->s, SIOCGIFINDEX, &buffer) < 0) {
-        printf("Error: could not get interface index\n");
-        close(sender->s);
-        free(sender);
-        return NULL;
-    }
-    ifindex = buffer.ifr_ifindex;
-    printf("ifindex: %d\n", ifindex);
-
-    // Look up source MAC address
-    if (ioctl(sender->s, SIOCGIFHWADDR, &buffer) < 0) {
-        printf("Error: could not get interface address\n");
-        close(sender->s);
-        free(sender);
-        return NULL;
-    }
-    memcpy((void*)(sender->source), (void*)(buffer.ifr_hwaddr.sa_data), ETH_ALEN);
-
-    // Print source MAC address
-    int i = 0;
-    printf("Source MAC: ");
-    for (i = 0; i < ETH_ALEN; ++i) {
-        if (i > 0) printf(":");
-        printf("%02x", sender->source[i]);
-    }
-    printf("\n");
-
-    // Fill in the packet fields
-    memcpy(sender->frame.field.header.h_dest, sender->dest, ETH_ALEN);
-    memcpy(sender->frame.field.header.h_source, sender->source, ETH_ALEN);
-    sender->frame.field.header.h_proto = htons(sender->proto);
-
-    // Fill in the sockaddr_ll struct
-    memset((void*)&(sender->saddrll), 0, sizeof(sender->saddrll));
-    sender->saddrll.sll_family = PF_PACKET;
-    sender->saddrll.sll_ifindex = ifindex;
-    sender->saddrll.sll_halen = ETH_ALEN;
-    memcpy((void*)(sender->saddrll.sll_addr), (void*)(sender->dest), ETH_ALEN);
-
+    memset(sender->dest_mac, 0x11, MAC_LEN);
+    msg_sender_get_src_mac(sender->l, sender->src_mac);
+    sender->p_tag = 0;
     return sender;
+}
+
+void msg_sender_get_src_mac(libnet_t* l, u_char* src_mac)
+{
+    struct libnet_ether_addr* src_hwaddr = libnet_get_hwaddr(l);
+    memcpy(src_mac, src_hwaddr->ether_addr_octet, MAC_LEN);
 }
 
 void msg_sender_close(sender_s* sender)
 {
-    close(sender->s);
+    libnet_destroy(sender->l);
     free(sender);
 }
 
-int msg_sender_send(const sender_s* sender, const char* data, const unsigned data_len)
+u_char msg_parser_priority(char* msg, unsigned msg_len)
 {
-    union ethframe frame;
-    memcpy(frame.buffer, sender->frame.buffer, sizeof(frame.buffer));
-    memcpy(frame.field.data, data, data_len);
+    int p = 0;
+    while (msg[p] != '<' && p < msg_len) ++p;
+    if (p >= msg_len) return 0;
+    ++p;
+    u_char pri = 0;
+    while (msg[p] != '>' && p < msg_len) {
+        pri = pri * 10 + msg[p] - '0';
+        ++p;
+    }
+    if (p >= msg_len) return 0;
+    return pri;
+}
 
+int msg_sender_send(sender_s* sender, char* msg, unsigned msg_len)
+{
+    // rsyslog: priority = facility << 3 + severity
+    u_char priority = msg_parser_priority(msg,msg_len);
+    char* data = malloc(DATA_MAX_LEN);
+    memset(data, 0, DATA_MAX_LEN);
+    memcpy(data + PRI_OFFSET, &priority, sizeof(u_char));
+
+    int max_len = DATA_MAX_LEN - TCP_IP_HLEN;
+    int sent_len = 0;
+    char* payload = data + PAYLOAD_OFFSET;
+    while (sent_len < msg_len) {
+        int l = msg_len - sent_len;
+        if (l > max_len) l = max_len;
+        printf("l: %d\n",l);
+        printf("sent len: %d\n",sent_len);
+        memcpy(payload, msg+sent_len, l);
+        msg_sender_send_out(sender, data, PAYLOAD_OFFSET + l);
+        printf("%d\n", PAYLOAD_OFFSET + l);
+        sent_len += l;
+    }
+}
+
+
+int msg_sender_send_out(sender_s* sender, char* data, unsigned data_len)
+{
+    // Careful with the last parameter, specify p_tag to modify an existing header
+    // 0 to create new header. If have to send multiple packages, don't creat new header
+    // every time, modify an existing one instead. Otherwise strange things will happen.
+    sender->p_tag = libnet_build_ethernet(sender->dest_mac, sender->src_mac, sender->proto,
+            data, data_len, sender->l, sender->p_tag);
     // Send the packet
-    unsigned int frame_len = data_len + ETH_HLEN;
-    if (sendto(sender->s, frame.buffer, frame_len, 0,
-                (struct sockaddr*)&(sender->saddrll), sizeof(sender->saddrll)) > 0) {
-        printf("Success!\n");
-    } else {
-        printf("Failed!\n");
+    if (sender->p_tag == -1) {
+        sender->p_tag = 0;
+        printf("libnet_build_ethernet err!\n");
         return -1;
+    }
+
+    if (libnet_write(sender->l) == -1) {
+        printf("libnet_write err!\n");
+    } else {
+        printf("libnet_write succeeded!\n");
     }
 
     return 0;
