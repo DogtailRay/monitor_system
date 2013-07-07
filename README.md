@@ -1,3 +1,3 @@
 # Log Receiver
 ## Usage:
-log_receiver <device> <logfile>
+`log_receiver <device> <logfile>`
