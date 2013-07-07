@@ -74,7 +74,7 @@ int msg_sender_send(sender_s* sender, char* msg, u_short msg_len)
         memcpy(payload, msg+sent_len, l);
         memcpy(data + IDX_OFFSET, &idx, sizeof(u_char));
         msg_sender_send_out(sender, data, PAYLOAD_OFFSET + l);
-        printf("%d\n", PAYLOAD_OFFSET + l);
+        //printf("%d\n", PAYLOAD_OFFSET + l);
         sent_len += l;
         ++idx;
     }
