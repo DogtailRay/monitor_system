@@ -69,8 +69,8 @@ int msg_sender_send(sender_s* sender, char* msg, u_short msg_len)
         // l is the length of payload in current package
         int l = msg_len - sent_len;
         if (l > max_len) l = max_len;
-        printf("l: %d\n",l);
-        printf("sent len: %d\n",sent_len);
+        //printf("l: %d\n",l);
+        //printf("sent len: %d\n",sent_len);
         memcpy(payload, msg+sent_len, l);
         memcpy(data + IDX_OFFSET, &idx, sizeof(u_char));
         msg_sender_send_out(sender, data, PAYLOAD_OFFSET + l);
@@ -98,7 +98,7 @@ int msg_sender_send_out(sender_s* sender, char* data, u_short data_len)
     if (libnet_write(sender->l) == -1) {
         printf("libnet_write err!\n");
     } else {
-        printf("libnet_write succeeded!\n");
+        //printf("libnet_write succeeded!\n");
     }
 
     return 0;
