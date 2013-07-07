@@ -3,10 +3,10 @@
 #include <string.h>
 #include "msg_sender.h"
 
-int main() {
+int main(int argc, char** argv) {
     char* data = "Hello World! asdfeasdf";
     unsigned data_len = strlen(data);
-    sender_s* sender = msg_sender_init();
+    sender_s* sender = msg_sender_init(argv[1]);
     if (sender == NULL) {
         printf("Init failed!\n");
         return -1;

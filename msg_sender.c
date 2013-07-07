@@ -1,14 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <openssl/md5.h>
 #include "msg_sender.h"
 
-sender_s* msg_sender_init()
+sender_s* msg_sender_init(char* iface)
 {
     sender_s* sender = malloc(sizeof(sender_s));
     char err_buff[LIBNET_ERRBUF_SIZE];
-    sender->device = "eth0";
-    sender->l = libnet_init(LIBNET_LINK, sender->device, err_buff);
+    sender->l = libnet_init(LIBNET_LINK, iface, err_buff);
     if (sender->l == NULL) {
         printf("libnet init err!\n");
         fprintf(stderr, "%s", err_buff);
@@ -48,31 +48,40 @@ u_char msg_parser_priority(char* msg, unsigned msg_len)
     return pri;
 }
 
-int msg_sender_send(sender_s* sender, char* msg, unsigned msg_len)
+int msg_sender_send(sender_s* sender, char* msg, u_short msg_len)
 {
     // rsyslog: priority = facility << 3 + severity
     u_char priority = msg_parser_priority(msg,msg_len);
+    u_char md5[16];
+    MD5(msg,msg_len,md5);
+    // data is the payload of ethernet package
     char* data = malloc(DATA_MAX_LEN);
     memset(data, 0, DATA_MAX_LEN);
+    memcpy(data + LEN_OFFSET, &msg_len, sizeof(u_short));
+    memcpy(data + MD5_OFFSET, md5, 16);
     memcpy(data + PRI_OFFSET, &priority, sizeof(u_char));
 
     int max_len = DATA_MAX_LEN - TCP_IP_HLEN;
     int sent_len = 0;
     char* payload = data + PAYLOAD_OFFSET;
+    u_char idx = 0;
     while (sent_len < msg_len) {
+        // l is the length of payload in current package
         int l = msg_len - sent_len;
         if (l > max_len) l = max_len;
         printf("l: %d\n",l);
         printf("sent len: %d\n",sent_len);
         memcpy(payload, msg+sent_len, l);
+        memcpy(data + IDX_OFFSET, &idx, sizeof(u_char));
         msg_sender_send_out(sender, data, PAYLOAD_OFFSET + l);
         printf("%d\n", PAYLOAD_OFFSET + l);
         sent_len += l;
+        ++idx;
     }
+    free(data);
 }
 
-
-int msg_sender_send_out(sender_s* sender, char* data, unsigned data_len)
+int msg_sender_send_out(sender_s* sender, char* data, u_short data_len)
 {
     // Careful with the last parameter, specify p_tag to modify an existing header
     // 0 to create new header. If have to send multiple packages, don't creat new header
