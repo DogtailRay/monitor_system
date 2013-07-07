@@ -37,9 +37,10 @@ int main(int argc, char** argv)
     }
 
     while (1) {
+        memset(message.buffer, 0, sizeof(message.buffer));
         msgrcv(msgid, &message, sizeof(message), ClientType, 0);
         printf("Received message: %s\n", message.buffer);
-        int data_len = strlen(message.buffer);          // Using strlen is dangerous, we need a better function
+        int data_len = strlen(message.buffer);
         msg_sender_send(sender, message.buffer, data_len);
     }
     msg_sender_close(sender);
