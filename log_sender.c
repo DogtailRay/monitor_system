@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include "msg_sender.h"
 /* Headers for interprocess messages */
 #include <sys/types.h>
@@ -19,6 +20,12 @@ struct log_message_s
 
 int msgid;
 
+void sig_handler(int signum)
+{
+    msgctl(msgid,IPC_RMID,NULL);
+    exit(0);
+}
+
 int main(int argc, char** argv)
 {
     // Initialize message server
@@ -35,6 +42,8 @@ int main(int argc, char** argv)
         printf("Message sender init failed!\n");
         return -1;
     }
+
+    signal(SIGINT, sig_handler);
 
     while (1) {
         memset(message.buffer, 0, sizeof(message.buffer));
