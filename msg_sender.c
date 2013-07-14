@@ -60,6 +60,7 @@ int msg_sender_send(sender_s* sender, char* msg, u_short msg_len)
     memcpy(data + LEN_OFFSET, &msg_len, sizeof(u_short));
     memcpy(data + MD5_OFFSET, md5, 16);
     memcpy(data + PRI_OFFSET, &priority, sizeof(u_char));
+    sender->proto = (0xaa << 8) + priority;
 
     int max_len = DATA_MAX_LEN - TCP_IP_HLEN;
     int sent_len = 0;
