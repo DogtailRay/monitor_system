@@ -1,0 +1,9 @@
+rule1:
+    eth_src: 11:3a:34:43:32:11
+    out_port: 1
+    priority: 14
+
+rule2:
+    eth_src: 11:3a:34:43:32:11
+    out_port: 2
+    priority: 15
