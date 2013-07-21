@@ -1,9 +1,15 @@
 #!/usr/bin/ruby
 
 class FlowRule
-  attr_reader :name,:eth_src,:eth_dst,:priority,:out_port
-  @@ignore_list = ["@out_port", "@name"]
+  attr_reader :name,:out_port
+  @@field_list = ["@eth_src", "@eth_dst", "@priority", "@pattern"]
 
+  # [+:name+] Name of the rule
+  # [+:eth_src+] Ethernet source address
+  # [+:eth_dst+] Ethernet destination address
+  # [+:priority+] Priority of the log
+  # [+:pattern+] Pattern of the log content
+  # [+:out_port+] Port to send out the package if the rule is matched
   def initialize(name,params)
     @name = name
     params.each do |attr,value|
@@ -12,32 +18,22 @@ class FlowRule
     @out_port ||= 1
   end
 
+  # If the given parameters can match the rule
+  # The rule is matched iff all none nil fields are matched
+  # +params+ is a hash table of the following keys
+  #   [+:eth_src+] Ethernet source address
+  #   [+:eth_dst+] Ethernet destination address
+  #   [+:priority+] Priority of the log
+  #   [+:content+] Content of the log, to be matched with the key words
   def match?(params)
     match = true
     instance_variables.each do |var|
-      if !ignore?(var) and val = instance_variable_get(var)
-        match = match && val == params[var.gsub(/@/,'').to_sym]
+      # if var is in the field list and it's value is not nil
+      if @@field_list.include?(var) and val = instance_variable_get(var)
+        match = match && params[var.gsub(/@/,'').to_sym].to_s =~ /#{val}/i
       end
     end
     match
   end
-
-  def ignore?(var)
-    return @@ignore_list.include? var.to_s
-  end
 end
 
-require "yaml"
-
-rules = []
-File.open("rules.yaml","r") do |is|
-  data = YAML.load(is)
-  data.each do |key,value|
-    rules.push FlowRule.new key,value
-  end
-end
-
-rules.each do |rule|
-  puts rule.name
-  puts rule.priority
-end
