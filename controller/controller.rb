@@ -33,6 +33,7 @@ class LogController < Controller
   end
 
   def query_stats
+    info "=================== Stats Report ==================="
     @switches.each do |dpid|
       send_message dpid, FlowStatsRequest.new(:match=>Match.new)
     end
@@ -41,7 +42,7 @@ class LogController < Controller
   def stats_reply dpid, message
     info "Switch #{dpid.to_hex}:"
     message.stats.each do |reply|
-      info reply.to_s
+      info "#{reply.cookie.to_hex} duration: #{reply.duration_sec} packet count: #{reply.packet_count}"
     end
   end
 

@@ -28,6 +28,12 @@ void sig_handler(int signum)
 
 int main(int argc, char** argv)
 {
+    sender_s* sender = msg_sender_init(argv[1]);
+    if (sender == NULL) {
+        printf("Message sender init failed!\n");
+        return -1;
+    }
+
     // Initialize message server
     msgid = msgget(MSG_KEY, IPC_CREAT|IPC_EXCL|0666);
     if (msgid < 0)
@@ -37,13 +43,8 @@ int main(int argc, char** argv)
     }
     printf("Message server started! qid:%d\n", msgid);
 
-    sender_s* sender = msg_sender_init(argv[1]);
-    if (sender == NULL) {
-        printf("Message sender init failed!\n");
-        return -1;
-    }
-
     signal(SIGINT, sig_handler);
+    signal(SIGKILL, sig_handler);
 
     while (1) {
         memset(message.buffer, 0, sizeof(message.buffer));
