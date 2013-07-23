@@ -8,9 +8,14 @@ class RuleSet
     @rules = []
     File.open(conf_file,"r") do |is|
       data = YAML.load(is)
-      data.each do |h|
-        key,value = h.shift
+      data.each do |key,value|
         @rules.push FlowRule.new key,value
+      end
+      @rules.sort! { |r1,r2| r1.name <=> r2.name }
+      if data.has_key? "default"
+        @default = FlowRule.new "default",data["default"]
+      else
+        @default = @rules.first
       end
     end
   end
@@ -23,5 +28,9 @@ class RuleSet
       end
     end
     return nil
+  end
+
+  def default_rule
+    @default
   end
 end

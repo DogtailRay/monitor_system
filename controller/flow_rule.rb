@@ -1,15 +1,17 @@
 #!/usr/bin/ruby
 
 class FlowRule
-  attr_reader :name,:out_port
-  @@field_list = ["@eth_src", "@eth_dst", "@priority", "@pattern"]
+  attr_reader :name,:out_port,:receiver
+  @@field_list = ["@eth_src", "@eth_dst", "@facility", "@severity", "@pattern"]
 
   # [+:name+] Name of the rule
   # [+:eth_src+] Ethernet source address
   # [+:eth_dst+] Ethernet destination address
-  # [+:priority+] Priority of the log
+  # [+:facility+] Facility of the log
+  # [+:severity+] Severity of the log
   # [+:pattern+] Pattern of the log content
   # [+:out_port+] Port to send out the package if the rule is matched
+  # [+:receiver+] Mac address of log reciever
   def initialize(name,params)
     @name = name
     params.each do |attr,value|
@@ -23,7 +25,8 @@ class FlowRule
   # +params+ is a hash table of the following keys
   #   [+:eth_src+] Ethernet source address
   #   [+:eth_dst+] Ethernet destination address
-  #   [+:priority+] Priority of the log
+  #   [+:facility+] Facility of the log
+  #   [+:severity+] Severity of the log
   #   [+:content+] Content of the log, to be matched with the key words
   def match?(params)
     match = true
@@ -34,6 +37,10 @@ class FlowRule
       end
     end
     match
+  end
+
+  def to_s
+    "#{@name}"
   end
 end
 
