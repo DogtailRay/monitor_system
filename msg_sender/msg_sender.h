@@ -7,7 +7,7 @@
 #define IP_HLEN 20
 #define TCP_HLEN 20
 #define TCP_IP_HLEN 40
-#define DATA_MAX_LEN 50
+#define DATA_MAX_LEN 1500
 #define PRI_OFFSET 20
 #define IDX_OFFSET 1
 #define LEN_OFFSET 2
