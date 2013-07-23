@@ -1,33 +1,48 @@
-# my_controller.rb
+# log controller.rb
 
 require "rule_set"
 
-class MyController < Controller
+class LogController < Controller
+  periodic_timer_event :query_stats, 10
+
   def start
-    info "Hello Trema!"
-    info "Controller started."
+    info "Log Controller started."
     @rule_set = RuleSet.new "rules.yaml"
+    @switches = []
   end
 
   def packet_in dpid, message
-    info "received a packet_in"
-    info "dpid: #{dpid.to_hex}"
-    info "in_port: #{message.in_port}"
-    info "Source MAC: #{message.macsa}"
-    info "Destination MAC: #{message.macda}"
-    info "Ethernet type: #{message.eth_type}"
     mask = 0xaa << 8
     if message.eth_type & mask == mask
       parse_log dpid, message
+    else
+      info "received a packet_in"
+      info "dpid: #{dpid.to_hex}"
+      info "Ethernet type: #{message.eth_type}"
     end
   end
 
   def switch_ready dpid
     info "Switch connected: #{dpid.to_hex}"
+    @switches << dpid
   end
 
   def switch_disconnected dpid
     info "Switch disconnected: #{dpid.to_hex}"
+    @switches.delete dpid
+  end
+
+  def query_stats
+    @switches.each do |dpid|
+      send_message dpid, FlowStatsRequest.new(:match=>Match.new)
+    end
+  end
+
+  def stats_reply dpid, message
+    info "Switch #{dpid.to_hex}:"
+    message.stats.each do |reply|
+      info reply.to_s
+    end
   end
 
   private
@@ -40,11 +55,11 @@ class MyController < Controller
       port_no = rule.out_port
       send_flow_mod_add(
         dpid,
-        :match => Match.new( :dl_type => message.eth_type),
-                             #:dl_src => message.macsa,
-                             #:dl_dst => message.macda ),
+        :match => Match.new( :dl_type => message.eth_type,
+                             :dl_src => message.macsa,
+                             :dl_dst => message.macda ),
         :actions => Trema::SendOutPort.new(port_no),
-        :hard_timeout => 10
+        :hard_timeout => 20
       )
       send_packet_out(
         dpid,
