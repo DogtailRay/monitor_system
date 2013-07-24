@@ -45,6 +45,7 @@ int main(int argc, char** argv)
 
     signal(SIGINT, sig_handler);
     signal(SIGKILL, sig_handler);
+    signal(SIGTERM, sig_handler);
 
     while (1) {
         memset(message.buffer, 0, sizeof(message.buffer));
