@@ -22,7 +22,9 @@ class MultiSwitchTopo(Topo):
                 self.addLink(child, switch)
         else:
             for i in range(fanout):
-                host = self.addHost('h%s' % (prefix+str(i)))
+                hn = len(self.hosts())
+                mac = "00:11:22:33:44:%02x" % hn
+                host = self.addHost('h%s' % (prefix+str(i)), mac=mac)
                 self.addLink(host, switch)
         return switch
 
@@ -36,7 +38,37 @@ def multiSwitchTest():
     dumpNodeConnections(net.hosts)
     print "Testing network connectivity"
     net.pingAll()
+    receivers = ["00:11:22:33:44:00",
+                 "00:11:22:33:44:04",
+                 "00:11:22:33:44:08",
+                 "00:11:22:33:44:0c"]
+    for host in net.hosts:
+        if host.defaultIntf().MAC() in receivers:
+            startLogReceiver(host)
+        else:
+            startLogSender(host)
+
+    for host in net.hosts:
+        if not (host.defaultIntf().MAC() in receivers):
+            runGenerator(host)
+
+    for host in net.hosts:
+        if host.defaultIntf().MAC() in receivers:
+            stopLogReceiver(host)
+        else:
+            stopLogSender(host)
     net.stop()
+
+def startLogReceiver(host):
+    host.cmd("./log_receiver {0} log_{1} &".format(host.defaultIntf(), host.name) )
+def startLogSender(host):
+    host.cmd("./log_sender {0} &".format(host.defaultIntf()) )
+def stopLogReceiver(host):
+    host.cmd("pkill log_receiver")
+def stopLogSender(host):
+    host.cmd("pkill log_sender")
+def runGenerator(host):
+    host.cmd("./generator {0}".format(host.name))
 
 if __name__ == '__main__':
     setLogLevel('info')
