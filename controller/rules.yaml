@@ -1,7 +1,7 @@
 rule1:
-    out_port: 2
     severity: "info"
+    receiver: "00:11:22:33:44:01"
 
 rule2:
-    out_port: 3
     severity: "debug"
+    receiver: "00:11:22:33:44:02"
