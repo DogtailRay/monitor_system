@@ -7,11 +7,12 @@
 #include <string.h>
 
 #define LOG_FILE "/dev/log"
+#define BUF_SIZE 65536
 
 int main() {
     int sock, msgsock, rval;
     struct sockaddr_un server;
-    char buffer[1024];
+    char buffer[BUF_SIZE];
 
     sock = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (sock < 0) {
@@ -49,7 +50,7 @@ int main() {
 
     while (1) {
         bzero(buffer, sizeof(buffer));
-        rval = read(sock, buffer, 1024);
+        rval = read(sock, buffer, BUF_SIZE);
         if (rval < 0)
             perror("reading stream message");
         else
