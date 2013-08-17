@@ -39,7 +39,7 @@ void* client_loop(void* client_ptr)
                 first = 0;
             }
             client_build_packet(client, current->msg, current->msg_s,
-                                current->seq, current->pri, flags);
+                                current->seq, flags);
             printf("before write\n");
             libnet_write(client->lnet);
             printf("after write\n");
@@ -103,7 +103,6 @@ int client_send(client_t* clt, char* msg, int len)
     new_msg->msg = malloc(len);
     memcpy(new_msg->msg, msg, len);
     new_msg->msg_s = len;
-    new_msg->pri = client_extract_priority(msg,len);
     new_msg->next = NULL;
     if (clt->tail == NULL) {
         clt->head = new_msg;
@@ -144,6 +143,7 @@ int client_init_fields(client_t* clt)
     memcpy(clt->src_mac, src_hwaddr->ether_addr_octet, MAC_LEN);
     /* Set destination MAC */
     memset(clt->dst_mac, 0x11, MAC_LEN);
+    clt->dst_mac[MAC_LEN-1] = clt->priority;
 
     /* Get source IP */
     clt->src_ip = libnet_get_ipaddr4(clt->lnet);
@@ -170,9 +170,8 @@ int client_init_fields(client_t* clt)
     return 0;
 }
 
-int client_build_packet(client_t* clt, char* payload, int payload_s, u_long seq, u_char priority, u_char flags)
+int client_build_packet(client_t* clt, char* payload, int payload_s, u_long seq, u_char flags)
 {
-    clt->dst_mac[MAC_LEN-1] = priority;
     /* Build TCP header */
     clt->tcp_ptag = libnet_build_tcp(
             clt->src_port, /* source port */
@@ -232,12 +231,13 @@ int client_build_packet(client_t* clt, char* payload, int payload_s, u_long seq,
     return 0;
 }
 
-client_t* client_init(char* dev, u_short port)
+client_t* client_init(char* dev, u_short port, u_char pri)
 {
     srand((port << 16) & time(NULL));
     client_t* client = malloc(sizeof(client_t));
     client->src_port = port;
     client->terminate = 0;
+    client->priority = pri;
     client->lock = malloc(sizeof(pthread_mutex_t));
     client->has_msg = malloc(sizeof(pthread_cond_t));
     pthread_mutex_init(client->lock, NULL);
