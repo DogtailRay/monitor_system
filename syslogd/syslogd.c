@@ -17,19 +17,22 @@
 
 client_t* clients[CLIENT_NUM_MAX];
 
+char* dev;
+
 void parse_log(char* log, int size)
 {
     printf("received log: %s\n", log);
     u_char pri = client_extract_priority(log, size);
     if (clients[pri] == 0) {
         u_short port = PORT_MIN + rand() % (PORT_MAX - PORT_MIN);
-        clients[pri] = client_init(NULL, port, pri);
+        clients[pri] = client_init(dev, port, pri);
     }
     client_send(clients[pri], log, size);
 }
 
-int main()
+int main(int agrc, char** argv)
 {
+    dev = argv[1];
     srand(time(NULL));
     int sock, msgsock, rval;
     struct sockaddr_un server;
