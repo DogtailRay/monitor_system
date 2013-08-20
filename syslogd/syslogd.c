@@ -5,11 +5,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include "client.h"
 
 #define LOG_FILE "/dev/log"
 #define BUF_SIZE 65536
+#define PORT_MIN 49152
+#define PORT_MAX 65536
 
-int main() {
+#define CLIENT_NUM_MAX 256
+
+client_t* clients[CLIENT_NUM_MAX];
+
+void parse_log(char* log, int size)
+{
+    printf("received log: %s\n", log);
+    u_char pri = client_extract_priority(log, size);
+    if (clients[pri] == 0) {
+        u_short port = PORT_MIN + rand() % (PORT_MAX - PORT_MIN);
+        clients[pri] = client_init(NULL, port, pri);
+    }
+    client_send(clients[pri], log, size);
+}
+
+int main()
+{
+    srand(time(NULL));
     int sock, msgsock, rval;
     struct sockaddr_un server;
     char buffer[BUF_SIZE];
@@ -31,6 +52,8 @@ int main() {
         perror("changing permission");
         exit(1);
     }
+
+    memset(clients, 0, sizeof(clients));
 
     listen(sock, 50);
     /*while (1) {
@@ -54,7 +77,14 @@ int main() {
         if (rval < 0)
             perror("reading stream message");
         else
-            printf("-->%s\n", buffer);
+            parse_log(buffer, strlen(buffer));
     }
+
     close(sock);
+    int i;
+    for (i = 0; i < CLIENT_NUM_MAX; ++i) {
+        if (clients[i] != 0) {
+            client_close(clients[i]);
+        }
+    }
 }

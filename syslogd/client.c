@@ -6,8 +6,17 @@
 
 #include "client.h"
 
+void client_parse_packet(u_char* args, const struct pcap_pkthdr* pkthdr, const u_char* packet)
+{
+    if (pkthdr->caplen == pkthdr->len) {
+        u_long* ack = (u_long*) args;
+        *ack = client_parse_ack(packet);
+    }
+}
+
 void* client_loop(void* client_ptr)
 {
+    printf("%d %d\n", LIBNET_ETH_H, LIBNET_IPV4_H);
     client_t* client = (client_t*) client_ptr;
     if (client_init_fields(client) != 0) {
         fprintf(stderr, "Fields initialization failed!");
@@ -18,20 +27,18 @@ void* client_loop(void* client_ptr)
     u_char first = 1;
 
     while (1) {
-        printf("enter while\n");
         pthread_mutex_lock(client->lock);
-        printf("thread get lock!\n");
+        if (current == NULL) current = client->head;
         while (client->head == NULL) {
             if (client->terminate) {
                 pthread_mutex_unlock(client->lock);
                 return 0;
             }
-            printf("sleep\n");
+            printf("client on port %d sleep\n", client->src_port);
             pthread_cond_wait(client->has_msg, client->lock);
-            printf("wake up\n");
+            printf("client on port %d wake up\n", client->src_port);
             current = client->head;
         }
-        printf("after first while\n");
         while (current != NULL && current->seq < client->ack + WIN_SIZE) {
             u_char flags = TH_PUSH;
             if (first) {
@@ -40,24 +47,22 @@ void* client_loop(void* client_ptr)
             }
             client_build_packet(client, current->msg, current->msg_s,
                                 current->seq, flags);
-            printf("before write\n");
             libnet_write(client->lnet);
-            printf("after write\n");
+            printf("port %d sended out seq: %x\n", client->src_port, current->seq);
             current = current->next;
         }
         pthread_mutex_unlock(client->lock);
 
-        struct pcap_pkthdr* pkthdr;
+        /*struct pcap_pkthdr* pkthdr;
         const u_char* pkt_data;
         int rval = pcap_next_ex(client->pcap, &pkthdr, &pkt_data);
         switch (rval) {
             case 1:
                 if (pkthdr->caplen == pkthdr->len) {
                     client->ack = client_parse_ack(pkt_data);
+                    printf("received ack: %x\n", client->ack);
                     client_free_messages(client);
                 }
-                free(pkthdr);
-                free((void *)pkt_data);
                 break;
             case 0:
                 current = client->head;
@@ -65,6 +70,16 @@ void* client_loop(void* client_ptr)
             default:
                 pcap_perror(client->pcap, "pcap_next_ex error");
                 break;
+        }*/
+
+        u_long ack = 0;
+        pcap_loop(client->pcap, 1, client_parse_packet, (u_char*)&ack);
+        if (ack == 0) {
+            current = client->head;
+        } else {
+            client->ack = ack;
+            printf("received ack: %x\n", client->ack);
+            client_free_messages(client);
         }
     }
     return 0;
@@ -77,6 +92,7 @@ void client_free_messages(client_t* client)
     while (current != NULL && current->seq < client->ack)
     {
         client->head = current->next;
+        free(current->msg);
         free(current);
         current = client->head;
     }
@@ -89,13 +105,18 @@ void client_free_messages(client_t* client)
 u_long client_parse_ack(const u_char* data)
 {
     int offset = LIBNET_ETH_H + LIBNET_IPV4_H + ACK_OFFSET;
-    return 0;
+    u_long ack;
+    int i = 0;
+    for (i = 0; i < offset; ++i)
+        printf("%02x",*(data+i));
+    printf("\n");
+    memcpy(&ack, data+offset, sizeof(u_long));
+    return ntohl(ack);
 }
 
 int client_send(client_t* clt, char* msg, int len)
 {
     pthread_mutex_lock(clt->lock);
-    printf("send get lock\n");
 
     message_t* new_msg = malloc(sizeof(message_t));
     new_msg->seq = clt->seq;
@@ -113,7 +134,6 @@ int client_send(client_t* clt, char* msg, int len)
     }
 
     pthread_mutex_unlock(clt->lock);
-    printf("send release lock\n");
     pthread_cond_signal(clt->has_msg);
 }
 
@@ -233,7 +253,6 @@ int client_build_packet(client_t* clt, char* payload, int payload_s, u_long seq,
 
 client_t* client_init(char* dev, u_short port, u_char pri)
 {
-    srand((port << 16) & time(NULL));
     client_t* client = malloc(sizeof(client_t));
     client->src_port = port;
     client->terminate = 0;
@@ -259,12 +278,12 @@ client_t* client_init(char* dev, u_short port, u_char pri)
     }
 
     char pattern[64];
-    sprintf(pattern, "tcp and dst port %d", client->src_port);
+    sprintf(pattern, "tcp and src port %d and dst port %d", LOG_PORT, client->src_port);
     struct bpf_program filter;
     pcap_compile(client->pcap, &filter, pattern, 1, 0);
     pcap_setfilter(client->pcap, &filter);
 
-    client->lnet = libnet_init(LIBNET_LINK, NULL, err_buf);
+    client->lnet = libnet_init(LIBNET_LINK, dev, err_buf);
     if (client->lnet == NULL) {
         printf("libnet init error!\n");
         fprintf(stderr, "%s", err_buf);
@@ -287,7 +306,6 @@ client_t* client_init(char* dev, u_short port, u_char pri)
 void client_close(client_t* clt)
 {
     pthread_mutex_lock(clt->lock);
-    printf("terminate get lock\n");
     clt->terminate = 1;
     pthread_mutex_unlock(clt->lock);
     pthread_cond_signal(clt->has_msg);

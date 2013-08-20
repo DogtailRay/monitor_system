@@ -7,7 +7,7 @@
 #include "common.h"
 
 #define WIN_SIZE 16
-#define TIMEOUT_MS 5000
+#define TIMEOUT_MS 2000
 #define ACK_OFFSET 8
 
 typedef struct message_s {
@@ -43,7 +43,7 @@ int client_send(client_t* clt, char* msg, int len);
 void client_close(client_t* clt);
 void* client_loop(void* client_ptr);
 int client_init_fields(client_t* clt);
-int client_build_packet(client_t* clt, char* payload, int payload_s, u_char flags);
+int client_build_packet(client_t* clt, char* payload, int payload_s, u_long seq, u_char flags);
 u_char client_extract_priority(char* msg, int len);
 void client_free_messages(client_t* client);
 u_long client_parse_ack(const u_char* data);
