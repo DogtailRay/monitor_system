@@ -8,7 +8,6 @@
 
 void* client_loop(void* client_ptr)
 {
-    printf("%d %d\n", LIBNET_ETH_H, LIBNET_IPV4_H);
     client_t* client = (client_t*) client_ptr;
     if (client_init_fields(client) != 0) {
         fprintf(stderr, "Fields initialization failed!");

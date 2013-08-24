@@ -106,16 +106,6 @@ void send_ack(source_t* source)
         return;
     }
 
-    int i;
-    printf("source MAC: ");
-    for (i = 0; i < MAC_LEN; ++i)
-        printf("%02x", source->mac[i]);
-    printf("\n");
-    printf("local MAC: ");
-    for (i = 0; i < MAC_LEN; ++i)
-        printf("%02x", local_mac[i]);
-    printf("\n");
-
     eth_ptag = libnet_build_ethernet(
             source->mac, /* ethernet destination */
             local_mac, /* ethernet source */
@@ -136,11 +126,6 @@ void send_ack(source_t* source)
 void parse_packet(u_char* args, const struct pcap_pkthdr* pkthdr, const u_char* packet)
 {
     if (pkthdr->caplen < pkthdr->len) return;
-
-    int i;
-    for (i = 0; i < 42; ++i)
-        printf("%02x",*(packet+i));
-    printf("\n");
 
     u_long src_ip;
     u_long seq;
