@@ -8,7 +8,6 @@
 
 #define WIN_SIZE 16
 #define TIMEOUT_MS 2000
-#define ACK_OFFSET 8
 
 typedef struct message_s {
     u_long seq;
@@ -20,7 +19,7 @@ typedef struct message_s {
 typedef struct client_s {
     pcap_t* pcap;
     libnet_t* lnet;
-    libnet_ptag_t tcp_ptag;
+    libnet_ptag_t udp_ptag;
     libnet_ptag_t ipv4_ptag;
     libnet_ptag_t eth_ptag;
     pthread_t thread;

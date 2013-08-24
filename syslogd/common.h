@@ -7,5 +7,8 @@
 #define IP_LEN 4
 #define SEQ_LEN 4
 #define PORT_LEN 2
+#define HEADER_LEN 10
+#define SEQ_OFFSET 0
+#define FLAG_OFFSET 8
 
 #endif

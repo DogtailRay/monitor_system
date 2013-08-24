@@ -6,14 +6,6 @@
 
 #include "client.h"
 
-void client_parse_packet(u_char* args, const struct pcap_pkthdr* pkthdr, const u_char* packet)
-{
-    if (pkthdr->caplen == pkthdr->len) {
-        u_long* ack = (u_long*) args;
-        *ack = client_parse_ack(packet);
-    }
-}
-
 void* client_loop(void* client_ptr)
 {
     printf("%d %d\n", LIBNET_ETH_H, LIBNET_IPV4_H);
@@ -53,7 +45,7 @@ void* client_loop(void* client_ptr)
         }
         pthread_mutex_unlock(client->lock);
 
-        /*struct pcap_pkthdr* pkthdr;
+        struct pcap_pkthdr* pkthdr;
         const u_char* pkt_data;
         int rval = pcap_next_ex(client->pcap, &pkthdr, &pkt_data);
         switch (rval) {
@@ -70,16 +62,6 @@ void* client_loop(void* client_ptr)
             default:
                 pcap_perror(client->pcap, "pcap_next_ex error");
                 break;
-        }*/
-
-        u_long ack = 0;
-        pcap_loop(client->pcap, 1, client_parse_packet, (u_char*)&ack);
-        if (ack == 0) {
-            current = client->head;
-        } else {
-            client->ack = ack;
-            printf("received ack: %x\n", client->ack);
-            client_free_messages(client);
         }
     }
     return 0;
@@ -104,14 +86,10 @@ void client_free_messages(client_t* client)
 
 u_long client_parse_ack(const u_char* data)
 {
-    int offset = LIBNET_ETH_H + LIBNET_IPV4_H + ACK_OFFSET;
+    int offset = LIBNET_ETH_H + LIBNET_IPV4_H + SEQ_OFFSET;
     u_long ack;
-    int i = 0;
-    for (i = 0; i < offset; ++i)
-        printf("%02x",*(data+i));
-    printf("\n");
     memcpy(&ack, data+offset, sizeof(u_long));
-    return ntohl(ack);
+    return ack;
 }
 
 int client_send(client_t* clt, char* msg, int len)
@@ -121,9 +99,10 @@ int client_send(client_t* clt, char* msg, int len)
     message_t* new_msg = malloc(sizeof(message_t));
     new_msg->seq = clt->seq;
     clt->seq += 1;
-    new_msg->msg = malloc(len);
-    memcpy(new_msg->msg, msg, len);
-    new_msg->msg_s = len;
+    new_msg->msg = malloc(len + HEADER_LEN);
+    memset(new_msg->msg, 0, HEADER_LEN);
+    memcpy(new_msg->msg + HEADER_LEN, msg, len);
+    new_msg->msg_s = len + HEADER_LEN;
     new_msg->next = NULL;
     if (clt->tail == NULL) {
         clt->head = new_msg;
@@ -183,7 +162,7 @@ int client_init_fields(client_t* clt)
     /* Set destination port */
     clt->dst_port = LOG_PORT;
 
-    clt->tcp_ptag = 0;
+    clt->udp_ptag = 0;
     clt->ipv4_ptag = 0;
     clt->eth_ptag = 0;
 
@@ -192,35 +171,33 @@ int client_init_fields(client_t* clt)
 
 int client_build_packet(client_t* clt, char* payload, int payload_s, u_long seq, u_char flags)
 {
-    /* Build TCP header */
-    clt->tcp_ptag = libnet_build_tcp(
+    memcpy(payload + SEQ_OFFSET, &seq, sizeof(u_long));
+    memcpy(payload + FLAG_OFFSET, &flags, sizeof(u_char));
+
+    /* Build UDP header */
+    clt->udp_ptag = libnet_build_udp(
             clt->src_port, /* source port */
-            clt->dst_port, /* destination port */
-            seq, /* sequence number */
-            0x01010101, /* acknowledgement num */
-            flags, /* control flags */
-            1, /* window size */
+            clt->dst_port, /* dst port */
+            LIBNET_UDP_H + payload_s, /* length */
             0, /* checksum */
-            0, /* urgent pointer */
-            LIBNET_TCP_H + payload_s, /* TCP packet size */
-            (uint8_t*)payload, /* payload */
-            payload_s, /* payload size */
+            payload, /* payload */
+            payload_s, /* payload length */
             clt->lnet, /* libnet handle */
-            clt->tcp_ptag); /* libnet id */
-    if (clt->tcp_ptag == -1)
+            clt->udp_ptag); /* libnet id */
+    if (clt->udp_ptag == -1)
     {
-        fprintf(stderr, "Can't build TCP header: %s\n", libnet_geterror(clt->lnet));
+        fprintf(stderr, "Can't build UDP header: %s\n", libnet_geterror(clt->lnet));
         return 1;
     }
 
     /* Build ipv4 header */
     clt->ipv4_ptag = libnet_build_ipv4(
-            LIBNET_IPV4_H + LIBNET_TCP_H + payload_s,/* length */
+            LIBNET_IPV4_H + LIBNET_UDP_H + payload_s,/* length */
             0, /* TOS */
             242, /* IP ID */
             0, /* IP Frag */
             64, /* TTL */
-            IPPROTO_TCP, /* protocol */
+            IPPROTO_UDP, /* protocol */
             0, /* checksum */
             clt->src_ip, /* source IP */
             clt->dst_ip, /* destination IP */
@@ -278,7 +255,7 @@ client_t* client_init(char* dev, u_short port, u_char pri)
     }
 
     char pattern[64];
-    sprintf(pattern, "tcp and src port %d and dst port %d", LOG_PORT, client->src_port);
+    sprintf(pattern, "udp and srcc port %d and dst port %d", LOG_PORT, client->src_port);
     struct bpf_program filter;
     pcap_compile(client->pcap, &filter, pattern, 1, 0);
     pcap_setfilter(client->pcap, &filter);

@@ -12,7 +12,7 @@ u_char local_mac[MAC_LEN];
 u_long local_ip;
 u_long local_port;
 
-libnet_ptag_t tcp_ptag = 0;
+libnet_ptag_t udp_ptag = 0;
 libnet_ptag_t ipv4_ptag = 0;
 libnet_ptag_t eth_ptag = 0;
 
@@ -65,35 +65,34 @@ void send_ack(source_t* source)
         ++source->seq;
     }
 
-    /* Build TCP header */
-    tcp_ptag = libnet_build_tcp(
+    char payload[HEADER_LEN];
+    memset(payload, 0, sizeof(payload));
+    memcpy(payload + SEQ_OFFSET, &source->seq, sizeof(u_long));
+
+    /* Build UDP header */
+    udp_ptag = libnet_build_udp(
             local_port, /* source port */
-            source->port, /* destination port */
-            0x01010101, /* sequence number */
-            source->seq, /* acknowledgement num */
-            TH_ACK, /* control flags */
-            0, /* window size */
+            source->port, /* dst port */
+            LIBNET_UDP_H + HEADER_LEN, /* length */
             0, /* checksum */
-            0, /* urgent pointer */
-            LIBNET_TCP_H, /* TCP packet size */
-            NULL, /* payload */
-            0, /* payload size */
+            payload, /* payload */
+            HEADER_LEN, /* payload length */
             lnet, /* libnet handle */
-            tcp_ptag); /* libnet id */
-    if (tcp_ptag == -1)
+            udp_ptag); /* libnet id */
+    if (udp_ptag == -1)
     {
-        fprintf(stderr, "Can't build TCP header: %s\n", libnet_geterror(lnet));
+        fprintf(stderr, "Can't build UDP header: %s\n", libnet_geterror(lnet));
         return;
     }
 
     /* Build ipv4 header */
     ipv4_ptag = libnet_build_ipv4(
-            LIBNET_IPV4_H + LIBNET_TCP_H,/* length */
+            LIBNET_IPV4_H + LIBNET_UDP_H,/* length */
             0, /* TOS */
             242, /* IP ID */
             0, /* IP Frag */
             64, /* TTL */
-            IPPROTO_TCP, /* protocol */
+            IPPROTO_UDP, /* protocol */
             0, /* checksum */
             local_ip, /* source IP */
             source->ip, /* destination IP */
@@ -151,13 +150,12 @@ void parse_packet(u_char* args, const struct pcap_pkthdr* pkthdr, const u_char* 
     memcpy(&src_mac, packet+SRC_MAC_OFFSET, MAC_LEN);
     memcpy(&src_ip, packet+LIBNET_ETH_H+SRC_IP_OFFSET, IP_LEN);
     memcpy(&src_port, packet+LIBNET_ETH_H+LIBNET_IPV4_H+SRC_PORT_OFFSET, PORT_LEN);
-    memcpy(&seq, packet+LIBNET_ETH_H+LIBNET_IPV4_H+SEQ_OFFSET, SEQ_LEN);
+    memcpy(&seq, packet+LIBNET_ETH_H+LIBNET_IPV4_H+LIBNET_UDP_H+SEQ_OFFSET, SEQ_LEN);
 
     src_port = ntohs(src_port);
-    seq = ntohl(seq);
 
     packet_t* newp = malloc(sizeof(packet_t));
-    int offset = LIBNET_ETH_H + LIBNET_IPV4_H + LIBNET_TCP_H;
+    int offset = LIBNET_ETH_H + LIBNET_IPV4_H + LIBNET_UDP_H;
     int len = pkthdr->len - offset;
     newp->seq = seq;
     newp->data = malloc(len);
@@ -228,7 +226,7 @@ int main(int agrc, char** argv)
     }
 
     char pattern[64];
-    sprintf(pattern, "tcp and dst port %d", LOG_PORT);
+    sprintf(pattern, "udp and dst port %d", LOG_PORT);
     struct bpf_program filter;
     pcap_compile(pcap, &filter, pattern, 1, 0);
     pcap_setfilter(pcap, &filter);

@@ -6,7 +6,6 @@
 #include "common.h"
 
 #define SOURCE_NUM_MAX 1024
-#define SEQ_OFFSET 4
 #define SRC_PORT_OFFSET 0
 #define SRC_IP_OFFSET 12
 #define SRC_MAC_OFFSET 6
