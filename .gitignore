@@ -1,3 +1,5 @@
 *~
 *.swp
 *tags
+syslogd/server
+syslogd/syslogd

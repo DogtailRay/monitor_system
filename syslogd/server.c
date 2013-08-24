@@ -50,9 +50,10 @@ void free_packet(packet_t* p)
 void save_packet(packet_t* p)
 {
     int i;
-    for (i = 0; i < p->len; ++i) {
+    for (i = HEADER_LEN; i < p->len; ++i) {
         putchar(p->data[i]);
     }
+    putchar('\n');
 }
 
 void send_ack(source_t* source)

@@ -85,7 +85,7 @@ void client_free_messages(client_t* client)
 
 u_long client_parse_ack(const u_char* data)
 {
-    int offset = LIBNET_ETH_H + LIBNET_IPV4_H + SEQ_OFFSET;
+    int offset = LIBNET_ETH_H + LIBNET_IPV4_H + LIBNET_UDP_H + SEQ_OFFSET;
     u_long ack;
     memcpy(&ack, data+offset, sizeof(u_long));
     return ack;
@@ -254,7 +254,7 @@ client_t* client_init(char* dev, u_short port, u_char pri)
     }
 
     char pattern[64];
-    sprintf(pattern, "udp and srcc port %d and dst port %d", LOG_PORT, client->src_port);
+    sprintf(pattern, "udp and src port %d and dst port %d", LOG_PORT, client->src_port);
     struct bpf_program filter;
     pcap_compile(client->pcap, &filter, pattern, 1, 0);
     pcap_setfilter(client->pcap, &filter);
