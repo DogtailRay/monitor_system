@@ -3,3 +3,5 @@
 *tags
 syslogd/server
 syslogd/syslogd
+experiment/log_document
+temp/*

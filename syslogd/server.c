@@ -29,15 +29,24 @@ int match_source(source_t* source, u_long ip, u_short port)
 
 void insert_packet(source_t* source, packet_t* packet)
 {
+    if (packet->seq < source->seq) return;
     if (source->packets == NULL) {
         source->packets = packet;
     } else {
-        packet_t* current = source->packets;
-        while (current->next != NULL && current->next->seq < packet->seq) {
-            current = current->next;
+        if (packet->seq < source->packets->seq) {
+            packet->next = source->packets;
+            source->packets = packet;
         }
-        packet->next = current->next;
-        current->next = packet;
+        else if (packet->seq > source->packets->seq) {
+            packet_t* current = source->packets;
+            while (current->next != NULL && current->next->seq < packet->seq) {
+                current = current->next;
+            }
+            if (current->next == NULL || current->next->seq > packet->seq) {
+                packet->next = current->next;
+                current->next = packet;
+            }
+        }
     }
 }
 
