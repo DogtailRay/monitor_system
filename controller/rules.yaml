@@ -1,15 +1,7 @@
 rule1:
     severity: "info"
-    receiver: "00:11:22:33:44:00"
+    receiver: "00:11:22:33:44:01"
 
 rule2:
     severity: "debug"
-    receiver: "00:11:22:33:44:04"
-
-rule3:
-    severity: "warn"
-    receiver: "00:11:22:33:44:08"
-
-rule4:
-    severity: "error"
-    receiver: "00:11:22:33:44:0c"
+    receiver: "00:11:22:33:44:02"

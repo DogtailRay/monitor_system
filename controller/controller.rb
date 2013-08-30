@@ -6,6 +6,7 @@ require "fdb"
 class LogController < Controller
 
   DEFAULT_HARD_TIMEOUT = 50
+  LOG_PORT = 13579
   FACILITIES = %w/ kern user mail daemon auth syslog lpr news uucp cron auth ftp ntp audit alert cron /
   SEVERITIES = %w/ emerg alert crit error warn notice info debug /
 
@@ -26,8 +27,7 @@ class LogController < Controller
     fdb = @fdbs[ dpid ]
     fdb.learn message.macsa, message.in_port
 
-    mask = 0xaa << 8
-    if message.eth_type & mask == mask
+    if log_message? message
       recv,port_no = parse_log message
       if recv
         port_no = fdb.port_no_of( recv )
@@ -70,19 +70,22 @@ class LogController < Controller
 
   private
 
+  def log_message? message
+    message.udp? && message.udp_dst_port == LOG_PORT
+  end
+
   def parse_log message
     # priority = facility << 3 + severity
-    priority = message.eth_type & 0xff
+    priority = message.macda & 0x000000000011
+    print priority
     facility = FACILITIES[ priority / 8 ]
     severity = SEVERITIES[ priority % 8 ]
     rule = @rule_set.matching_rule( :eth_src => message.macsa,
-                                    :eth_dst => message.macda,
                                     :facility => facility,
                                     :severity => severity )
     unless rule
       warn %Q/Can't find matching rule for
               src_mac:  #{message.macsa}
-              src_dst:  #{message.macda}
               facility: #{facility}
               severity: #{severity}/
      rule = @rule_set.default_rule
