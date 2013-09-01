@@ -21,13 +21,17 @@ char* dev;
 
 void parse_log(char* log, int size)
 {
+    char* new_log = malloc(size+1);
+    memcpy(new_log, log, size);
+    new_log[size] = '\n';
     printf("received log: %s\n", log);
     u_char pri = client_extract_priority(log, size);
     if (clients[pri] == 0) {
         u_short port = PORT_MIN + rand() % (PORT_MAX - PORT_MIN);
         clients[pri] = client_init(dev, port, pri);
     }
-    client_send(clients[pri], log, size);
+    client_send(clients[pri], new_log, size+1);
+    free(new_log);
 }
 
 int main(int agrc, char** argv)

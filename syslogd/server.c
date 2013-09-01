@@ -18,6 +18,8 @@ libnet_ptag_t eth_ptag = 0;
 
 source_t sources[SOURCE_NUM_MAX];
 
+FILE* file;
+
 int match_source(source_t* source, u_long ip, u_short port)
 {
     if (source->ip == ip && source->port == port) {
@@ -58,11 +60,7 @@ void free_packet(packet_t* p)
 
 void save_packet(packet_t* p)
 {
-    int i;
-    for (i = HEADER_LEN; i < p->len; ++i) {
-        putchar(p->data[i]);
-    }
-    putchar('\n');
+    fwrite(p->data, p->len - HEADER_LEN, 1, file);
 }
 
 void send_ack(source_t* source)
@@ -202,6 +200,7 @@ int main(int agrc, char** argv)
 {
     char err_buf[1024];
     char* dev = argv[1];
+    file = fopen(argv[2], "w+");
     pcap = pcap_open_live(dev, 65536, 1, 0, err_buf);
     if (pcap == NULL) {
         printf("pcap init error!\n");
@@ -231,5 +230,6 @@ int main(int agrc, char** argv)
 
     libnet_destroy(lnet);
     pcap_close(pcap);
+    fclose(file);
     return 0;
 }
