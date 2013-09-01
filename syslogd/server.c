@@ -60,7 +60,8 @@ void free_packet(packet_t* p)
 
 void save_packet(packet_t* p)
 {
-    fwrite(p->data, p->len - HEADER_LEN, 1, file);
+    fwrite(p->data+HEADER_LEN, p->len - HEADER_LEN, 1, file);
+    fflush(file);
 }
 
 void send_ack(source_t* source)
