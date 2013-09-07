@@ -5,19 +5,26 @@ require "yaml"
 
 class RuleSet
   def initialize(conf_file)
-    @rules = []
-    File.open(conf_file,"r") do |is|
+    @conf_file = conf_file
+    update
+  end
+
+  def update
+    new_rules = []
+    File.open(@conf_file,"r") do |is|
       data = YAML.load(is)
       data.each do |key,value|
-        @rules.push FlowRule.new key,value
+        new_rules.push FlowRule.new key,value
       end
-      @rules.sort! { |r1,r2| r1.name <=> r2.name }
+      new_rules.sort! { |r1,r2| r1.name <=> r2.name }
       if data.has_key? "default"
-        @default = FlowRule.new "default",data["default"]
+        new_default = FlowRule.new "default",data["default"]
       else
-        @default = @rules.first
+        new_default = new_rules.first
       end
     end
+    @rules = new_rules
+    @default = new_default
   end
 
   # Return the rule matching the given parameters

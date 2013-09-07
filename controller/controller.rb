@@ -12,6 +12,7 @@ class LogController < Controller
 
   periodic_timer_event :query_stats, 10
   periodic_timer_event :age_fdbs, 30
+  periodic_timer_event :update_rules, 10
 
   def start
     info "Log Controller started."
@@ -76,8 +77,7 @@ class LogController < Controller
 
   def parse_log message
     # priority = facility << 3 + severity
-    priority = message.macda & 0x000000000011
-    print priority
+    priority = message.macda.value & 0x0000000000ff
     facility = FACILITIES[ priority / 8 ]
     severity = SEVERITIES[ priority % 8 ]
     rule = @rule_set.matching_rule( :eth_src => message.macsa,
@@ -121,5 +121,9 @@ class LogController < Controller
     @fdbs.each_value do | each |
       each.age
     end
+  end
+
+  def update_rules
+    @rule_set.update
   end
 end
