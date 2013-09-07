@@ -15,7 +15,6 @@ void* client_loop(void* client_ptr)
     }
 
     message_t* current = NULL;
-    u_char first = 1;
 
     while (1) {
         pthread_mutex_lock(client->lock);
@@ -32,9 +31,8 @@ void* client_loop(void* client_ptr)
         }
         while (current != NULL && current->seq < client->ack + WIN_SIZE) {
             u_char flags = TH_PUSH;
-            if (first) {
+            if (current->seq == client->ack) {
                 flags = TH_PUSH | TH_SYN;
-                first = 0;
             }
             client_build_packet(client, current->msg, current->msg_s,
                                 current->seq, flags);

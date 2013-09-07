@@ -139,12 +139,14 @@ void parse_packet(u_char* args, const struct pcap_pkthdr* pkthdr, const u_char* 
     u_long src_ip;
     u_long seq;
     u_short src_port;
+    u_char flags;
     u_char src_mac[MAC_LEN];
 
     memcpy(&src_mac, packet+SRC_MAC_OFFSET, MAC_LEN);
     memcpy(&src_ip, packet+LIBNET_ETH_H+SRC_IP_OFFSET, IP_LEN);
     memcpy(&src_port, packet+LIBNET_ETH_H+LIBNET_IPV4_H+SRC_PORT_OFFSET, PORT_LEN);
     memcpy(&seq, packet+LIBNET_ETH_H+LIBNET_IPV4_H+LIBNET_UDP_H+SEQ_OFFSET, SEQ_LEN);
+    memcpy(&flags, packet+LIBNET_ETH_H+LIBNET_IPV4_H+LIBNET_UDP_H+FLAG_OFFSET, sizeof(u_char));
 
     src_port = ntohs(src_port);
 
@@ -160,7 +162,7 @@ void parse_packet(u_char* args, const struct pcap_pkthdr* pkthdr, const u_char* 
     int s = 0;
     while (s < src_num && !match_source(&sources[s], src_ip, src_port)) ++s;
 
-    if (s >= src_num) {
+    if (s >= src_num && (flags & TH_SYN)) {
         s = src_num++;
         sources[s].ip = src_ip;
         sources[s].port = src_port;
