@@ -1,7 +1,7 @@
 # log controller.rb
 
-require "rule_set"
 require "fdb"
+require "process_set"
 
 class LogController < Controller
 
@@ -16,7 +16,7 @@ class LogController < Controller
 
   def start
     info "Log Controller started."
-    @rule_set = RuleSet.new "rules.yaml"
+    @process_set = ProcessSet.new "rules.yaml"
     @switches = []
     # Create new FDB when accessing new dpid
     @fdbs = Hash.new do | hash, dpid |
@@ -76,19 +76,16 @@ class LogController < Controller
   end
 
   def parse_log message
-    # priority = facility << 3 + severity
-    priority = message.macda.value & 0x0000000000ff
-    facility = FACILITIES[ priority / 8 ]
-    severity = SEVERITIES[ priority % 8 ]
-    rule = @rule_set.matching_rule( :eth_src => message.macsa,
-                                    :facility => facility,
-                                    :severity => severity )
+    type = message.macda.value & 0xff
+    prerequisites = (message.macda.value >> 16)
+    # dest ip: message.ipv4_daddr.to_ary
+    process = @process_set.find_process prerequisites
+    rule = process.rule_set.matching_rule( :eth_src => message.macsa, :type => type )
     unless rule
       warn %Q/Can't find matching rule for
               src_mac:  #{message.macsa}
-              facility: #{facility}
-              severity: #{severity}/
-     rule = @rule_set.default_rule
+              type: #{type}/
+     rule = process.rule_set.default_rule
     end
     [ rule.receiver, rule.out_port ]
   end
@@ -124,6 +121,6 @@ class LogController < Controller
   end
 
   def update_rules
-    @rule_set.update
+    @process_set.update
   end
 end

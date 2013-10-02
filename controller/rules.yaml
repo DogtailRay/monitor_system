@@ -1,7 +1,22 @@
-rule1:
-    severity: "info"
-    receiver: "00:11:22:33:44:01"
-
-rule2:
-    severity: "debug"
-    receiver: "00:11:22:33:44:02"
+process 1:
+    prerequisites: 0x0
+    rules:
+        rule1:
+            mask: 0xff
+            type: 0x0e
+            receiver: "00:11:22:33:44:01"
+        rule2:
+            mask: 0xff
+            type: 0x0f
+            receiver: "00:11:22:33:44:02"
+process 2:
+    prerequisites: 0x1
+    rules:
+        rule1:
+            mask: 0xff
+            type: 0x0e
+            receiver: "00:11:22:33:44:03"
+        rule2:
+            mask: 0xff
+            type: 0x0f
+            receiver: "00:11:22:33:44:04"
