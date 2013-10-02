@@ -22,9 +22,9 @@ class RuleSet
       else
         new_default = new_rules.first
       end
+      @default = new_default
     end
     @rules = new_rules
-    @default = new_default
   end
 
   # Return the rule matching the given parameters
