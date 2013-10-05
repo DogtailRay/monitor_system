@@ -19,6 +19,9 @@ u_long          local_port;
 libnet_ptag_t   udp_ptag = 0;
 libnet_ptag_t   ipv4_ptag = 0;
 libnet_ptag_t   eth_ptag = 0;
+u_int           hop_number;
+u_char          dst_mac[MAC_LEN];
+
 
 client_t* server_client[CLIENT_NUM_MAX];
 source_t sources[SOURCE_NUM_MAX];
@@ -231,9 +234,11 @@ int client_init_fields(client_t* clt)
         return 1;
     }
     memcpy(clt->src_mac, src_hwaddr->ether_addr_octet, MAC_LEN);
+    
     /* Set destination MAC */
-    memset(clt->dst_mac, 0x11, MAC_LEN);
-    clt->dst_mac[MAC_LEN-1] = clt->priority;
+    //memset(clt->dst_mac, 0, MAC_LEN);
+    clt->dst_mac = dst_mac;
+    clt->dst_mac[hop_number-1] = 1;
     
     /* Get source IP */
     clt->src_ip = libnet_get_ipaddr4(clt->lnet);
@@ -419,6 +424,7 @@ void parse_packet(u_char* args, const struct pcap_pkthdr* pkthdr, const u_char* 
     u_long  payload_s;
     
     memcpy(&src_mac, packet+SRC_MAC_OFFSET, MAC_LEN);
+    memcpy(&dst_mac, packet+SRC_MAC_OFFSET+MAC_LEN, MAC_LEN);
     memcpy(&src_ip, packet+LIBNET_ETH_H+SRC_IP_OFFSET, IP_LEN);
     memcpy(&src_port, packet+LIBNET_ETH_H+LIBNET_IPV4_H+SRC_PORT_OFFSET, PORT_LEN);
     memcpy(&seq, packet+LIBNET_ETH_H+LIBNET_IPV4_H+LIBNET_UDP_H+SEQ_OFFSET, SEQ_LEN);
@@ -512,6 +518,7 @@ int main(int agrc, char** argv)
     char err_buf[1024];
     dev = argv[1];
     file = fopen(argv[2], "w+");
+    hop_number = argv[3];
     pcap = pcap_open_live(dev, 65536, 1, 0, err_buf);
     if (pcap == NULL) {
         printf("pcap init error!\n");
