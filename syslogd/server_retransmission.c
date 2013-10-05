@@ -222,6 +222,46 @@ void send_ack(source_t* source)
     libnet_write(lnet);
 }
 
+int client_init_fields(client_t* clt)
+{
+    /* Get source MAC */
+    struct libnet_ether_addr* src_hwaddr = libnet_get_hwaddr(clt->lnet);
+    if (src_hwaddr == NULL) {
+        perror(libnet_geterror(clt->lnet));
+        return 1;
+    }
+    memcpy(clt->src_mac, src_hwaddr->ether_addr_octet, MAC_LEN);
+    /* Set destination MAC */
+    memset(clt->dst_mac, 0x11, MAC_LEN);
+    clt->dst_mac[MAC_LEN-1] = clt->priority;
+    
+    /* Get source IP */
+    clt->src_ip = libnet_get_ipaddr4(clt->lnet);
+    if (clt->src_ip == 0)
+    {
+        perror(libnet_geterror(clt->lnet));
+        return 1;
+    }
+    /* Set destination IP */
+    struct in_addr* inp = malloc(sizeof(struct in_addr));
+    if (inet_aton(LOG_IP, inp) == 0)
+    {
+        perror("destination ip error");
+        return 1;
+    }
+    memcpy(&(clt->dst_ip), &(inp->s_addr), sizeof(u_long));
+    free(inp);
+    
+    /* Set destination port */
+    clt->dst_port = LOG_PORT;
+    
+    clt->udp_ptag = 0;
+    clt->ipv4_ptag = 0;
+    clt->eth_ptag = 0;
+    
+    return 0;
+}
+
 void* server_client_loop(void* client_ptr)
 {
     client_t* server_client = (client_t*) client_ptr;
@@ -288,14 +328,11 @@ void* server_client_loop(void* client_ptr)
     return 0;
 }
 
-
-
-client_t* server_client_init(char* dev, u_short port, u_char pri)
+client_t* server_client_init(char* dev, u_short port)
 {
     client_t* server_client = malloc(sizeof(client_t));
     server_client->src_port = port;
     server_client->terminate = 0;
-    //server_client->priority = pri;
     server_client->lock = malloc(sizeof(pthread_mutex_t));
     server_client->has_msg = malloc(sizeof(pthread_cond_t));
     pthread_mutex_init(server_client->lock, NULL);
@@ -343,6 +380,31 @@ client_t* server_client_init(char* dev, u_short port, u_char pri)
     
     return server_client;
 }
+
+int server_client_send(client_t* clt, u_char* msg, int len)
+{
+    pthread_mutex_lock(clt->lock);
+    
+    message_t* new_msg = malloc(sizeof(message_t));
+    new_msg->seq = clt->seq;
+    clt->seq += 1;
+    new_msg->msg = malloc(len + HEADER_LEN);
+    memset(new_msg->msg, 0, HEADER_LEN);
+    memcpy(new_msg->msg + HEADER_LEN, msg, len);
+    new_msg->msg_s = len + HEADER_LEN;
+    new_msg->next = NULL;
+    if (clt->tail == NULL) {
+        clt->head = new_msg;
+        clt->tail = new_msg;
+    } else {
+        clt->tail->next = new_msg;
+        clt->tail = new_msg;
+    }
+    
+    pthread_mutex_unlock(clt->lock);
+    pthread_cond_signal(clt->has_msg);
+}
+
 
 void parse_packet(u_char* args, const struct pcap_pkthdr* pkthdr, const u_char* packet)
 {
@@ -394,8 +456,7 @@ void parse_packet(u_char* args, const struct pcap_pkthdr* pkthdr, const u_char* 
         u_short port = PORT_MIN + rand() % (PORT_MAX - PORT_MIN);
         server_client[s] = server_client_init(dev, port);
     }
-    server_client_send(server_client[s], newp, len);
-    
+    server_client_send(server_client[s], newp->data, len);
     
     
     send_ack(&sources[s]);
@@ -421,6 +482,29 @@ int set_local_fields() {
     
     local_port = LOG_PORT;
     return 0;
+}
+
+void client_close(client_t* clt)
+{
+    pthread_mutex_lock(clt->lock);
+    clt->terminate = 1;
+    pthread_mutex_unlock(clt->lock);
+    pthread_cond_signal(clt->has_msg);
+    pthread_detach(clt->thread);
+    pthread_join(clt->thread, NULL);
+    
+    pthread_mutex_destroy(clt->lock);
+    pthread_cond_destroy(clt->has_msg);
+    free(clt->lock);
+    free(clt->has_msg);
+    
+    if (clt->pcap > 0) {
+        pcap_close(clt->pcap);
+    }
+    if (clt->lnet > 0) {
+        libnet_destroy(clt->lnet);
+    }
+    free(clt);
 }
 
 int main(int agrc, char** argv)
@@ -458,5 +542,16 @@ int main(int agrc, char** argv)
     libnet_destroy(lnet);
     pcap_close(pcap);
     fclose(file);
+    
+    int i;
+    for (i = 0; i < CLIENT_NUM_MAX; ++i)
+    {
+        if (server_client[i] != 0)
+        {
+            client_close(server_client[i]);
+        }
+    }
+    
+    
     return 0;
 }
